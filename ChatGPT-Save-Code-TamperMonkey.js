@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Save Code Button Injector for OpenAI Chat
-// @namespace    http://tampermonkey.net/
+// @namespace    https://github.com/joetech/tampermonkey
 // @version      0.1
 // @description  Add a save code button next to copy code buttons in OpenAI Chat
 // @author       ChatGPT (with loving guidance from Joe Colburn)
