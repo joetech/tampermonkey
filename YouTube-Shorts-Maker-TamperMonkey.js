@@ -26,28 +26,6 @@
         modal.innerHTML = content;
         document.body.appendChild(modal);
     }
-
-        // Function to generate the command for clipping
-        function generateClipCommand(videoId, startTime) {
-            const endTime = startTime + 10;
-            return `youtube-dl -f best -g 'https://www.youtube.com/watch?v=${videoId}' | xargs -I {} ffmpeg -ss ${startTime} -i {} -t 10 -c copy video.mp4 && open video.mp4`;
-        }
-    
-        // Function to create a copy-to-clipboard link
-        function createCopyLink(command) {
-            const copyLink = document.createElement('a');
-            copyLink.href = '#';
-            copyLink.textContent = 'Generate';
-            copyLink.addEventListener('click', (e) => {
-                e.preventDefault();
-                navigator.clipboard.writeText(command).then(() => {
-                    alert('Command copied to clipboard!');
-                }, (err) => {
-                    console.error('Could not copy text: ', err);
-                });
-            });
-            return copyLink;
-        }
     
     // Function to pause the current YouTube video
     function pauseCurrentVideo() {
@@ -57,12 +35,24 @@
         }
     }
 
+    // Function to generate the command for clipping
+    function generateClipCommand(videoId, startTime) {
+        return `youtube-dl -f best -g 'https://www.youtube.com/watch?v=${videoId}' | xargs -I {} ffmpeg -ss ${startTime} -i {} -t 10 -c copy video.mp4 && open video.mp4`;
+    }
+
+    // Function to create a "Snip" link
+    function createSnipLink(videoId, startTime) {
+        const snipLink = document.createElement('a');
+        snipLink.href = '#';
+        snipLink.textContent = 'Snip';
+        snipLink.dataset.command = generateClipCommand(videoId, startTime); // Store command in dataset
+        return snipLink;
+    }
+
     // Function to parse caption data and find clips
     function findClips(data) {
-        // Parse the caption data to extract timestamps and texts
         let clips = [];
         try {
-            // Assuming 'data' is already a parsed JSON object
             data.events.forEach(event => {
                 if (event.segs && event.segs.length > 0) {
                     event.segs.forEach(seg => {
@@ -73,8 +63,6 @@
                 }
             });
 
-            // Now, select a few random segments from the parsed clips
-            // Adjust the number of clips and the logic according to your needs
             let selectedClips = [];
             for (let i = 0; i < 6 && clips.length > 0; i++) {
                 let index = Math.floor(Math.random() * clips.length);
@@ -82,33 +70,46 @@
                 clips.splice(index, 1); // Remove the selected clip to avoid duplicates
             }
 
-            if (clips.length > 0) {
+            if (selectedClips.length > 0) {
                 pauseCurrentVideo();
+                const videoId = window.location.search.split('v=')[1].split('&')[0];
+                const content = selectedClips.map(clip => {
+                    const snipLink = createSnipLink(videoId, clip.startTime).outerHTML;
+                    return `Clip: ${clip.text} - <a href="https://youtu.be/${videoId}?t=${clip.startTime}">Watch</a> | ${snipLink}`;
+                }).join('<br>');
+                createModal(content);
             }
 
             return selectedClips;
+
         } catch (e) {
             console.error('Error parsing caption data:', e);
             return [];
         }
     }
+    // Event listener for Snip link clicks
+    document.addEventListener('click', function(e) {
+        if (e.target && e.target.textContent === 'Snip') {
+            e.preventDefault(); // Prevent default link behavior
+            const command = e.target.dataset.command;
+            if (command) {
+                navigator.clipboard.writeText(command).then(() => {
+                    alert('Command copied to clipboard!');
+                }, (err) => {
+                    console.error('Could not copy text: ', err);
+                });
+            }
+        }
+    });
 
     // Intercept network requests
     const origOpen = XMLHttpRequest.prototype.open;
     XMLHttpRequest.prototype.open = function() {
         this.addEventListener('load', function() {
             if (this.responseURL.startsWith("https://www.youtube.com/api/timedtext?")) {
-                //console.log("Captured CC data", this.responseText);
                 try {
                     const data = JSON.parse(this.responseText);
-                    const clips = findClips(data);
-                    if (clips.length > 0) {
-                        const videoId = window.location.search.split('v=')[1].split('&')[0];
-                        const content = clips.map(clip =>
-                            `Clip: ${clip.text} - <a href="https://youtu.be/${videoId}?t=${clip.startTime}">Watch</a>`
-                        ).join('<br>');
-                        createModal(content);
-                    }
+                    findClips(data); // Removed redundant modal content creation
                 } catch(e) {
                     console.error('Error parsing caption data:', e);
                 }
@@ -116,5 +117,6 @@
         });
         origOpen.apply(this, arguments);
     };
+
 
 })();
